@@ -117,7 +117,7 @@ class Proot(
      */
     fun prepare() {
         for (dir in listOf(tmpDir, runtimeDir)) {
-            LauncherData.deleteTree(dir)
+            runCatching { LauncherData.deleteTree(dir) }
             dir.mkdirs()
         }
         if (dev.omalauncher.droidspaces.BackendDetector.detect(context).isDroidSpaces) return

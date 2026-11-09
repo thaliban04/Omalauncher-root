@@ -45,7 +45,9 @@ object BackendDetector {
             LinuxBackendMode.PROOT
         }
 
-        cachedMode = mode
+        if (mode == LinuxBackendMode.DROIDSPACES) {
+            cachedMode = mode
+        }
         return mode
     }
 

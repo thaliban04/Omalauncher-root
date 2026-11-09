@@ -1,0 +1,14 @@
+permissive priv_app
+allow priv_app privapp_data_file sock_file *
+allow priv_app privapp_data_file fifo_file *
+allow priv_app privapp_data_file dir *
+allow priv_app privapp_data_file file *
+allow priv_app privapp_data_file lnk_file *
+allow priv_app unlabeled dir *
+allow priv_app unlabeled file *
+allow priv_app unlabeled lnk_file *
+allow priv_app unlabeled sock_file *
+allow priv_app unlabeled fifo_file *
+allow priv_app tmpfs file *
+allow priv_app tmpfs dir *
+allow priv_app tmpfs lnk_file *
