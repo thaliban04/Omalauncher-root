@@ -1,0 +1,5 @@
+#!/bin/sh
+# DroidSpaces aarch64 runtime launcher shim
+# Automatically replaced by ./scripts/fetch-droidspaces.sh or extracted at runtime
+echo "DroidSpaces container runtime"
+

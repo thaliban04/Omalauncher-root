@@ -165,6 +165,30 @@ class Bootstrap(
 
     val isInstalled get() = _state.value == LinuxState.Installed
 
+    private fun ensureKeymap() {
+        if (proot.keymap.exists() && proot.keymap.length() > 0) return
+        try {
+            proot.keymap.parentFile?.mkdirs()
+            context.assets.open("keymap.xkb").use { input ->
+                val bytes = input.readBytes()
+                writeAtomically(proot.keymap, bytes + 0)
+            }
+            Log.i(TAG, "Deployed keymap from assets: ${proot.keymap.length()} bytes")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to copy keymap from assets", e)
+        }
+    }
+
+    /** Marks Linux as installed without running PRoot setup (used when native DroidSpaces is active). */
+    fun markInstalled() {
+        ensureKeymap()
+        for (step in steps) {
+            journal.mark(step.id)
+        }
+        journal.completeSetup()
+        _state.value = LinuxState.Installed
+    }
+
     /** An install was started (and may still need to finish), or one finished. */
     val wanted get() = journal.setupComplete || choiceFile.exists()
 
@@ -206,7 +230,7 @@ class Bootstrap(
                 guest("pacman -Rdd --noconfirm linux-aarch64 \$(pacman -Qq | grep ^linux-firmware); true")
             },
             Step("packages-1", Stage.Packages, R.string.linux_step_packages, network = true) { guest(pacmanInstall(PACKAGES, refresh = true)) },
-            Step("keymap-1", Stage.Packages, R.string.linux_step_keymap, network = false, isDone = { proot.keymap.exists() }) { compileKeymap() },
+            Step("keymap-1", Stage.Packages, R.string.linux_step_keymap, network = false, isDone = { proot.keymap.exists() && proot.keymap.length() > 0 }) { compileKeymap() },
             Step("cliamp-$CLIAMP_VERSION", Stage.Packages, R.string.linux_step_cliamp, network = true) { installCliamp() },
             // Omarchy's themes were a step here ("omarchy-<ref>") until Linux became optional; ThemeStore fetches them now.
         )
@@ -238,6 +262,12 @@ class Bootstrap(
     suspend fun run() =
         withContext(Dispatchers.IO) {
             try {
+                if (dev.omalauncher.droidspaces.BackendDetector.detect(context).isDroidSpaces) {
+                    ensureKeymap()
+                    journal.completeSetup()
+                    _state.value = LinuxState.Installed
+                    return@withContext
+                }
                 when {
                     journal.setupComplete -> update()
                     !choiceFile.exists() -> {
@@ -599,6 +629,9 @@ class Bootstrap(
     }
 
     private fun compileKeymap() {
+        if (proot.keymap.exists() && proot.keymap.length() > 0) return
+        ensureKeymap()
+        if (proot.keymap.exists() && proot.keymap.length() > 0) return
         guest(
             "xkbcli compile-keymap --layout us > /tmp/keymap.xkb || " +
                 "/usr/lib/xkbcommon/xkbcli-compile-keymap --layout us > /tmp/keymap.xkb",

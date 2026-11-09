@@ -1,0 +1,28 @@
+#!/sbin/sh
+##########################################################################################
+#
+# Magisk / KernelSU / APatch Module Installer Script
+#
+##########################################################################################
+
+OUTFD=$2
+ZIPFILE=$3
+
+# Load util_functions.sh
+if [ -f /data/adb/magisk/util_functions.sh ]; then
+  . /data/adb/magisk/util_functions.sh
+elif [ -f /data/adb/ksu/util_functions.sh ]; then
+  . /data/adb/ksu/util_functions.sh
+elif [ -f /data/adb/ap/util_functions.sh ]; then
+  . /data/adb/ap/util_functions.sh
+else
+  for p in /data/adb/magisk /data/adb/ksu /data/adb/ap; do
+    if [ -f $p/util_functions.sh ]; then
+      . $p/util_functions.sh
+      break
+    fi
+  done
+fi
+
+install_module
+exit 0

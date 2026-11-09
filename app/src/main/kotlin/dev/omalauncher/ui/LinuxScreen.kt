@@ -96,14 +96,25 @@ private fun InstallOffer(runtime: Runtime) {
     var picked by rememberSaveable { mutableStateOf(listOf(AGENTS.first().bin)) }
     val install = rememberLinuxInstall(runtime)
     BasicText(stringResource(R.string.linux_offer_title), style = Mono.copy(fontSize = TextSize.Large))
+    if (runtime.isDroidSpaces) {
+        Spacer(Modifier.height(4.dp))
+        BasicText(
+            "⚡ Native Container Mode (DroidSpaces) Ready",
+            style = Mono.copy(color = Palette.green, fontSize = TextSize.Small),
+        )
+    }
     Spacer(Modifier.height(8.dp))
     BasicText(
         stringResource(R.string.linux_offer_body),
         style = Mono.copy(color = Palette.muted, fontSize = TextSize.Small),
     )
     Spacer(Modifier.height(16.dp))
-    // Above the agent list, so it's in reach without scrolling.
-    PrimaryButton(if (picked.isEmpty()) stringResource(R.string.linux_install) else pluralStringResource(R.plurals.linux_install_with_agents, picked.size, picked.size), Modifier.takesPassedKeys().passesKeys()) {
+    val installLabel = when {
+        runtime.isDroidSpaces && runtime.droidSpaces.installer.isInstalled() -> "Activate Native Linux (DroidSpaces)"
+        picked.isEmpty() -> stringResource(R.string.linux_install)
+        else -> pluralStringResource(R.plurals.linux_install_with_agents, picked.size, picked.size)
+    }
+    PrimaryButton(installLabel, Modifier.takesPassedKeys().passesKeys()) {
         install(picked)
     }
     Spacer(Modifier.height(24.dp))
@@ -120,12 +131,20 @@ private fun Installed(runtime: Runtime) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            BasicText(stringResource(R.string.linux_arch), style = Mono.copy(fontSize = TextSize.Item))
             BasicText(
-                stringResource(R.string.linux_installed_size, size?.let(::formatSize) ?: stringResource(R.string.linux_measuring)),
+                if (runtime.isDroidSpaces) "Arch Linux ARM (DroidSpaces Native)" else stringResource(R.string.linux_arch),
+                style = Mono.copy(fontSize = TextSize.Item),
+            )
+            BasicText(
+                if (runtime.isDroidSpaces) "Container: ${runtime.droidSpaces.installer.getContainerName()}"
+                else stringResource(R.string.linux_installed_size, size?.let(::formatSize) ?: stringResource(R.string.linux_measuring)),
                 style = Mono.copy(color = Palette.muted, fontSize = TextSize.Small),
             )
         }
+        dev.omalauncher.droidspaces.ui.BackendStatusBadge(
+            isDroidSpaces = runtime.isDroidSpaces,
+            isRunning = true,
+        )
     }
     if (runtime.gpu.supported) {
         Spacer(Modifier.height(8.dp))

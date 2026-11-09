@@ -18,7 +18,7 @@ import dev.omalauncher.wayland.SurfaceHit
 import dev.omalauncher.wayland.XdgToplevel
 import kotlin.math.roundToInt
 
-private const val WHEEL_STEP = 15f
+internal const val WHEEL_STEP = 15f
 
 /**
  * Routes pointer input over a Linux window's view to its surfaces. Mouse input
@@ -35,7 +35,7 @@ fun Modifier.linuxWindowInput(
     handlePointer(wm, window, viewConfiguration.touchSlop, viewConfiguration.longPressTimeoutMillis, onCursorTap)
 }
 
-private fun XdgToplevel.hitTest(
+internal fun XdgToplevel.hitTest(
     x: Float,
     y: Float,
 ) = renderer?.hitTest(x, y)
@@ -144,6 +144,11 @@ private fun handleMouse(
             return previousButtons
         }
         PointerEventType.Scroll -> {
+            val hit: SurfaceHit? = window.hitTest(change.position.x, change.position.y)
+            if (hit != null) {
+                if (window !== wm.focused) wm.focus(window)
+                wm.pointerMove(hit)
+            }
             val d = change.scrollDelta
             wm.scroll(d.x * WHEEL_STEP, d.y * WHEEL_STEP, AXIS_SOURCE_WHEEL, d.y.roundToInt())
             return previousButtons

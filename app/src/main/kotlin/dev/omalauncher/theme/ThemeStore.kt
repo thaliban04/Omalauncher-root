@@ -453,8 +453,10 @@ class ThemeStore(
     suspend fun renderGuest() {
         val theme = current ?: return
         withContext(Dispatchers.IO) {
-            guest.render(theme)
-            background?.let(guest::linkBackground)
+            runCatching {
+                guest.render(theme)
+                background?.let(guest::linkBackground)
+            }.onFailure { android.util.Log.w("theme", "failed to render guest theme", it) }
         }
         prefs.edit().putString(RENDERED_BY, appStamp(context)).apply()
     }

@@ -16,6 +16,10 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
+import dev.omalauncher.droidspaces.BackendDetector
+import dev.omalauncher.droidspaces.DroidSpacesBackend
+import dev.omalauncher.droidspaces.DroidSpacesBootstrap
+import dev.omalauncher.droidspaces.LinuxBackendMode
 import dev.omalauncher.linux.AGENTS
 import dev.omalauncher.linux.Agent
 import dev.omalauncher.linux.AgentStore
@@ -162,6 +166,10 @@ class Runtime(
             ),
         )
     val bootstrap = Bootstrap(context, proot, agents, pacman, provisioner)
+    val droidSpaces = DroidSpacesBackend(context)
+    val droidSpacesBootstrap = DroidSpacesBootstrap(context, droidSpaces)
+    val backendMode: LinuxBackendMode get() = BackendDetector.detect(context)
+    val isDroidSpaces: Boolean get() = backendMode.isDroidSpaces
 
     /** Its jobs write files and start the guest; one that fails (storage full) mustn't take the home screen down. */
     private val scope =
@@ -245,6 +253,17 @@ class Runtime(
                 launcherFiles.sync()
                 agents.load()
             }
+            val hasContainer = withContext(Dispatchers.IO) {
+                isDroidSpaces && droidSpaces.installer.isInstalled()
+            }
+            if (hasContainer) {
+                Log.i(TAG, "Native DroidSpaces container detected, activating native Linux")
+                bootstrap.markInstalled()
+                launcherReady = true
+                withContext(Dispatchers.IO) {
+                    droidSpaces.startContainer()
+                }
+            }
             // Linux apps are files on disk: listed now for the recent strip, not after Linux has started.
             if (bootstrap.wanted) scope.launch { linuxApps.refresh() } else linuxApps.listed = true
             // Widgets don't wait for the theme: they draw with the palette, which is already loaded, and the
@@ -266,7 +285,14 @@ class Runtime(
     }
 
     /** Installs Linux in the background, with [agents]; progress shows in [Bootstrap.state] and the notification. */
-    fun installLinux(agents: List<Agent>) = runLinux { bootstrap.install(agents) }
+    fun installLinux(agents: List<Agent>) = runLinux {
+        if (isDroidSpaces && droidSpaces.installer.isInstalled()) {
+            Log.i(TAG, "Native DroidSpaces container already present, marking installed")
+            bootstrap.markInstalled()
+        } else {
+            bootstrap.install(agents)
+        }
+    }
 
     /** Continues a failed install, or a failed update of an installed system. */
     fun retryLinux() = runLinux { bootstrap.run() }
@@ -314,6 +340,9 @@ class Runtime(
                 launcherFont.forget()
                 widgets.linuxChanged(false)
                 audio.stop()
+                if (backendMode == LinuxBackendMode.DROIDSPACES) {
+                    droidSpaces.stopContainer()
+                }
                 withContext(Dispatchers.IO) { proot.killAll() }
                 bootstrap.remove()
                 withContext(Dispatchers.IO) {
@@ -357,7 +386,12 @@ class Runtime(
             )
             withContext(Dispatchers.IO) {
                 server.start()
-                proot.procShim.start()
+                if (backendMode == LinuxBackendMode.DROIDSPACES) {
+                    droidSpaces.mountWaylandSocket(proot.runtimeDir)
+                    droidSpaces.startContainer()
+                } else {
+                    proot.procShim.start()
+                }
                 openBridge.start()
                 phoneBridge.start()
                 dns.start()
@@ -375,7 +409,7 @@ class Runtime(
         themes.renderGuest()
         withContext(Dispatchers.IO) {
             provisioner.sync()
-            audio.start()
+            if (backendMode != LinuxBackendMode.DROIDSPACES) audio.start()
             synchronized(server) { server.input.setKeymap(proot.keymap.path) }
             agents.load()
         }
@@ -693,7 +727,9 @@ class Runtime(
         }
         Log.i(TAG, "launch: $command")
         thread(name = "guest-launch", isDaemon = true) {
-            val code = runCatching { proot.run("exec $command") { Log.i(TAG, "[${command.take(24)}] $it") } }.getOrElse { -1 }
+            val code = runCatching {
+                proot.run("exec $command") { Log.i(TAG, "[${command.take(24)}] $it") }
+            }.getOrElse { -1 }
             Log.i(TAG, "exited $code: $command")
             onExit()
         }

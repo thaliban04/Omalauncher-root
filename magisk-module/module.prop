@@ -1,0 +1,6 @@
+id=omalauncher_privapp
+name=OmaLauncher System Priv-App
+version=v1.0.0
+versionCode=100
+author=thaliban04 & SimonSchubert
+description=Installs OmaLauncher with DroidSpaces, Wayland & Bluetooth optimizations as a privileged system launcher in /system/priv-app for zero-lag performance and anti-kill memory priority.

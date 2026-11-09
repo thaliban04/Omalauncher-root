@@ -2,56 +2,77 @@ package dev.omalauncher
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.os.Bundle
+import android.view.InputDevice
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imeAnimationTarget
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import dev.omalauncher.ui.ExtraKeys
 import dev.omalauncher.ui.ImagePicker
 import dev.omalauncher.ui.KeyboardSink
 import dev.omalauncher.ui.WidgetAsks
 import dev.omalauncher.ui.Mono
 import dev.omalauncher.ui.Palette
+import dev.omalauncher.ui.WHEEL_STEP
+import dev.omalauncher.ui.hitTest
 import dev.omalauncher.ui.linuxWindowInput
+import dev.omalauncher.ui.showStatusBar
+import dev.omalauncher.wayland.AXIS_SOURCE_WHEEL
 import dev.omalauncher.wayland.WindowRenderer
 import dev.omalauncher.wayland.XdgToplevel
 import kotlinx.coroutines.flow.first
+import kotlin.math.roundToInt
 
 /**
  * Shows a single Linux window as its own Android task, so it gets its own
@@ -59,6 +80,7 @@ import kotlinx.coroutines.flow.first
  */
 class LinuxWindowActivity : InstantActivity() {
     private var window: XdgToplevel? = null
+    private var surfaceView: WindowSurfaceView? = null
     private val imagePicker = ImagePicker(this) { runtime }
     private val asks = WidgetAsks(this)
 
@@ -72,7 +94,8 @@ class LinuxWindowActivity : InstantActivity() {
         }
         this.window = window
         setInstantContent {
-            AppWindow(runtime, window)
+            LaunchedEffect(Unit) { hideSystemBars() }
+            AppWindow(runtime, window) { surfaceView = it }
             BackHandler { backInstantly() }
             LaunchedEffect(window) {
                 snapshotFlow { window in runtime.wm.appWindows }.first { !it }
@@ -92,9 +115,16 @@ class LinuxWindowActivity : InstantActivity() {
 
     override fun onResume() {
         super.onResume()
+        hideSystemBars()
         window?.let(runtime.wm::focus)
         runtime.keyboard.imagePicker = imagePicker
         asks.resumed(runtime)
+    }
+
+    private fun hideSystemBars() {
+        val bars = WindowCompat.getInsetsController(getWindow(), getWindow().decorView)
+        bars.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        bars.hide(WindowInsetsCompat.Type.systemBars())
     }
 
     override fun onStop() {
@@ -119,6 +149,43 @@ class LinuxWindowActivity : InstantActivity() {
         }
         if (runtime.keyboard.handle(event)) return true
         return super.dispatchKeyEvent(event)
+    }
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        val w = window ?: return super.dispatchGenericMotionEvent(event)
+        val sv = surfaceView ?: return super.dispatchGenericMotionEvent(event)
+        if (event.isFromSource(InputDevice.SOURCE_CLASS_POINTER)) {
+            val loc = IntArray(2)
+            sv.getLocationOnScreen(loc)
+            val x = event.rawX - loc[0]
+            val y = event.rawY - loc[1]
+            when (event.actionMasked) {
+                MotionEvent.ACTION_SCROLL -> {
+                    val hit = w.hitTest(x, y)
+                    if (hit != null) {
+                        if (w !== runtime.wm.focused) runtime.wm.focus(w)
+                        runtime.wm.pointerMove(hit)
+                        val vScroll = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
+                        val hScroll = event.getAxisValue(MotionEvent.AXIS_HSCROLL)
+                        val dy = -vScroll * WHEEL_STEP
+                        val dx = hScroll * WHEEL_STEP
+                        val steps = (-vScroll).roundToInt()
+                        runtime.wm.scroll(dx, dy, AXIS_SOURCE_WHEEL, steps)
+                        return true
+                    }
+                }
+                MotionEvent.ACTION_HOVER_MOVE -> {
+                    val hit = w.hitTest(x, y)
+                    runtime.wm.pointerMove(hit)
+                    return true
+                }
+                MotionEvent.ACTION_HOVER_EXIT -> {
+                    runtime.wm.pointerMove(null)
+                    return true
+                }
+            }
+        }
+        return super.dispatchGenericMotionEvent(event)
     }
 
     /** Keys held as the window goes, like Super, would stay down for it: Android sends their lift elsewhere. */
@@ -167,9 +234,14 @@ internal fun taskIcon(
 private fun AppWindow(
     runtime: Runtime,
     window: XdgToplevel,
+    onSurfaceViewCreated: (WindowSurfaceView) -> Unit = {},
 ) {
     var sink by remember { mutableStateOf<KeyboardSink?>(null) }
     var surfaceView by remember { mutableStateOf<WindowSurfaceView?>(null) }
+    val configuration = LocalConfiguration.current
+    val hasHardwareKeyboard = configuration.keyboard == Configuration.KEYBOARD_QWERTY ||
+        configuration.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_NO
+    var keyboardFabVisible by rememberSaveable(hasHardwareKeyboard) { mutableStateOf(!hasHardwareKeyboard) }
     // Shows wherever the window has yet to draw, as when it grows; the terminal's own background, not a lighter one.
     val background = Palette.background.toArgb()
     val density = LocalDensity.current
@@ -180,7 +252,7 @@ private fun AppWindow(
         Modifier
             .fillMaxSize()
             .background(Palette.background)
-            .systemBarsPadding(),
+            .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal)),
     ) {
         AndroidView(
             factory = { KeyboardSink(it, runtime.keyboard).also { v -> sink = v } },
@@ -189,7 +261,12 @@ private fun AppWindow(
         // Always the whole screen: a SurfaceView that changes size shows its last frame stretched until the next one,
         // so the keyboard and the extra keys go over it, and only the Linux window gets smaller.
         AndroidView(
-            factory = { context -> WindowSurfaceView(context, runtime, window).also { surfaceView = it } },
+            factory = { context ->
+                WindowSurfaceView(context, runtime, window).also {
+                    surfaceView = it
+                    onSurfaceViewCreated(it)
+                }
+            },
             update = { it.background = background },
             modifier = Modifier.fillMaxSize(),
         )
@@ -206,16 +283,35 @@ private fun AppWindow(
                 // Over the SurfaceView, which Compose's pointer input doesn't reach.
                 // A tap on the prompt line brings the keyboard back, as the ⌨ button does.
                 Box(Modifier.fillMaxSize().linuxWindowInput(runtime.wm, window) { sink?.takeUnless { it.showing }?.show() })
-                Box(
-                    Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(12.dp)
-                        .size(40.dp)
-                        .background(Palette.overlay, CircleShape)
-                        .clickable { sink?.toggle() },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    BasicText("⌨", style = Mono.copy(color = Palette.foreground))
+                if (keyboardFabVisible) {
+                    Box(
+                        Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(12.dp)
+                            .size(40.dp)
+                            .background(Palette.overlay, CircleShape)
+                            .pointerInput(Unit) {
+                                detectTapGestures(
+                                    onTap = { sink?.toggle() },
+                                    onLongPress = { keyboardFabVisible = false },
+                                )
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        BasicText("⌨", style = Mono.copy(color = Palette.foreground))
+                    }
+                } else {
+                    Box(
+                        Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 4.dp, bottom = 12.dp)
+                            .size(width = 16.dp, height = 32.dp)
+                            .background(Palette.overlay.copy(alpha = 0.35f), RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp))
+                            .clickable { keyboardFabVisible = true },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        BasicText("‹", style = Mono.copy(color = Palette.muted, fontSize = 12.sp))
+                    }
                 }
             }
             // Below the window rather than over it, so the window shrinks and nothing hides behind the keys; only over a

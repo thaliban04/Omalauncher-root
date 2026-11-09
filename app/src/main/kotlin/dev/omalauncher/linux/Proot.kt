@@ -13,7 +13,16 @@ class Proot(
 ) {
     private val nativeDir = File(context.applicationInfo.nativeLibraryDir)
     val filesDir: File = context.filesDir
-    val rootfs = File(filesDir, "arch")
+    private val defaultRootfs = File(filesDir, "arch")
+    val rootfs: File
+        get() {
+            if (dev.omalauncher.droidspaces.BackendDetector.detect(context).isDroidSpaces) {
+                val container = dev.omalauncher.droidspaces.DroidSpacesBackend(context).installer.getContainerName()
+                val mnt = File("/mnt/Droidspaces/$container")
+                if (mnt.isDirectory) return mnt
+            }
+            return defaultRootfs
+        }
     val tmpDir = File(filesDir, "tmp")
 
     /** Bound to XDG_RUNTIME_DIR inside the guest; holds the Wayland socket and the bridges' FIFOs. */
@@ -22,9 +31,9 @@ class Proot(
     val keymap = File(filesDir, "keymap.xkb")
 
     /** The guest user's home, /root, and the launcher's places in it. */
-    val home = File(rootfs, "root")
-    val applications = File(home, ".local/share/applications")
-    val launcherConfig = File(home, ".config/omalauncher")
+    val home get() = File(rootfs, "root")
+    val applications get() = File(home, ".local/share/applications")
+    val launcherConfig get() = File(home, ".config/omalauncher")
 
     /**
      * A listable stand-in for /sys: apps may only read /sys/devices/system/cpu,
@@ -111,6 +120,7 @@ class Proot(
             LauncherData.deleteTree(dir)
             dir.mkdirs()
         }
+        if (dev.omalauncher.droidspaces.BackendDetector.detect(context).isDroidSpaces) return
         // proot skips a bind whose host directory is missing, and the guest would then write into the rootfs.
         // The empty mount points make the bound directories show up in listings of their parents.
         for ((guest, host) in dataBinds) {
@@ -221,8 +231,16 @@ class Proot(
     }
 
     /** A guest `sh -c [script]`, stderr merged into stdout. Needs [prepare] to have run. */
-    fun process(script: String): ProcessBuilder =
-        ProcessBuilder(command(script)).apply {
+    fun process(script: String): ProcessBuilder {
+        if (dev.omalauncher.droidspaces.BackendDetector.detect(context).isDroidSpaces) {
+            val container = dev.omalauncher.droidspaces.DroidSpacesBackend(context).installer.getContainerName()
+            val envScript = "export HOME=/root USER=root LANG=en_US.UTF-8 TERM=xterm-256color PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/root/.local/bin:/root/.local/share/mise/shims:\$PATH XDG_RUNTIME_DIR=/run/user/0 WAYLAND_DISPLAY=wayland-0 GDK_BACKEND=wayland QT_QPA_PLATFORM=wayland MOZ_ENABLE_WAYLAND=1 SDL_VIDEODRIVER=wayland TAR_OPTIONS=--no-same-permissions MISE_NPM_PACKAGE_MANAGER=npm DISABLE_AUTOUPDATER=1 OPENCODE_DISABLE_AUTOUPDATE=1 GROK_DISABLE_AUTOUPDATER=1 CLAUDE_CODE_HARBOR_KITE=0 BROWSER=xdg-open; $script"
+            val escaped = envScript.replace("'", "'\\''")
+            return ProcessBuilder("su", "-c", "/data/local/Droidspaces/bin/droidspaces --name=$container run sh -c '$escaped'").apply {
+                redirectErrorStream(true)
+            }
+        }
+        return ProcessBuilder(command(script)).apply {
             environment().apply {
                 clear()
                 put("PROOT_LOADER", File(nativeDir, "libproot-loader.so").path)
@@ -231,6 +249,7 @@ class Proot(
             }
             redirectErrorStream(true)
         }
+    }
 
     companion object {
         const val GUEST_HOME = "/root"

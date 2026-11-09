@@ -57,7 +57,7 @@ private fun parseDesktopEntry(file: File): LinuxApp? {
     return LinuxApp(name, exec, fields["Terminal"] == "true", file.nameWithoutExtension, fields["StartupWMClass"], fields["Icon"])
 }
 
-private val ICON_SIZES = listOf("256x256", "192x192", "128x128", "96x96", "72x72", "64x64", "48x48")
+private val ICON_SIZES = listOf("512x512", "384x384", "256x256", "192x192", "128x128", "96x96", "72x72", "64x64", "48x48", "32x32")
 
 /**
  * Finds an icon file for [icon] in the guest: an absolute path, or a hicolor/pixmaps
@@ -68,13 +68,17 @@ fun resolveLinuxIcon(
     icon: String,
 ): File? {
     if (icon.startsWith("/")) return File(rootfs, icon.removePrefix("/")).takeIf { it.isFile && it.extension in ICON_TYPES }
+    if (icon.startsWith("~/")) return File(File(rootfs, "root"), icon.removePrefix("~/")).takeIf { it.isFile && it.extension in ICON_TYPES }
+    val clean = icon.removePrefix("apps/").removeSuffix(".png").removeSuffix(".svg")
+    val bases = listOf("root/.local/share", "root/.icons", "usr/share", "usr/local/share")
+    val names = if (clean != clean.lowercase()) listOf(clean, clean.lowercase()) else listOf(clean)
     val candidates =
-        ICON_SIZES.map { "usr/share/icons/hicolor/$it/apps/$icon.png" } +
-            "usr/share/pixmaps/$icon.png" +
-            "root/.local/share/icons/hicolor/256x256/apps/$icon.png" +
-            "usr/share/icons/hicolor/scalable/apps/$icon.svg" +
-            "usr/share/pixmaps/$icon.svg" +
-            "root/.local/share/icons/hicolor/scalable/apps/$icon.svg"
+        names.flatMap { name ->
+            bases.flatMap { base -> ICON_SIZES.map { "$base/icons/hicolor/$it/apps/$name.png" } } +
+                bases.map { "$it/pixmaps/$name.png" } +
+                bases.map { "$it/icons/hicolor/scalable/apps/$name.svg" } +
+                bases.map { "$it/pixmaps/$name.svg" }
+        }
     return candidates.map { File(rootfs, it) }.firstOrNull { it.isFile }
 }
 

@@ -107,6 +107,7 @@ panel "app drawer" {
 
   // How much the drawer covers home: near-opaque, as home's widgets showing through make the icons hard to read.
   opacity: 0.97
+  keyboard: false
   // keyboard: false (with owl: 15 in meta) leaves the keyboard down as the drawer opens, until the bar is tapped.
   enter: searching ? (chosen >= 0 ? "▸ " + str.open : "⏎ " + str.ask) : ""
   // An empty bar's Enter does nothing, as on home.
@@ -131,11 +132,12 @@ panel "app drawer" {
         size: 52
         align: center
         radius: 26 * corners
-        background: a.hasIcon && !d.monochrome ? transparent : surface
+        clip: true
+        background: a.kind == "linux" || !a.hasIcon || d.monochrome ? surface : transparent
         if a.hasIcon {
           Image { src: a.icon; size: d.monochrome ? 36 : 52; tint: d.monochrome ? accent : null; label: a.label }
         } else {
-          Text { text: a.initials; fontSize: 18; color: accent }
+          Text { text: a.initials; fontSize: 18; bold: true; color: accent }
         }
       }
       // The notification dot, on the edge of a round icon as stock launchers draw it.

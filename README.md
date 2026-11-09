@@ -1,155 +1,193 @@
-# Omalauncher
+# Omalauncher-Root (DroidSpaces & System Edition)
 
-An Android home screen with the look of [Omarchy](https://omarchy.org), and an
-optional Arch Linux ARM system next to your phone apps. Omalauncher runs the
-system under proot, without root, and is its Wayland compositor: every Linux
-window opens as its own Android task, with its own card in Recents.
+[![Release](https://img.shields.io/badge/Release-v1.0.0--stable-blue.svg)](releases/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Android%2010%2B%20%7C%20arm64-green.svg)]()
+[![Magisk / KernelSU](https://img.shields.io/badge/Root-Magisk%20%7C%20KernelSU%20%7C%20APatch-orange.svg)]()
 
-<a href="https://play.google.com/store/apps/details?id=dev.omalauncher"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="80"></a>
+> **Versi Bahasa Indonesia** | [English Version](#english-documentation)
 
-![The home screen in twelve Omarchy themes, each with different widgets](art/collage.png)
+**Omalauncher-Root** adalah fork khusus performa tinggi dari [Omalauncher](https://omarchy.org), yang dioptimalkan untuk perangkat Android ber-root (Magisk / KernelSU / APatch) dengan integrasi kontainer native **DroidSpaces**, akselerasi grafis Wayland, dukungan penuh input periferal (Bluetooth Mouse & Keyboard), serta modul sistem priv-app tanpa lag dan anti-kill.
 
-<p>
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/01.png" width="24%" alt="Screenshot">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/02.png" width="24%" alt="Screenshot">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/03.png" width="24%" alt="Screenshot">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/04.png" width="24%" alt="Screenshot">
-</p>
+---
 
-- **Themes**: all 22 Omarchy themes, with their wallpapers, applied to the
-  launcher and to the Linux apps, plus the community themes from
-  [omarchy.org/themes](https://omarchy.org/themes/), or your own in
-  `~/.config/omarchy/themes`
-- **Widgets** written in OWL, a small declarative language you can edit on the
-  phone, plus a [widget store](https://github.com/SimonSchubert/omarchy-widgets)
-- **Linux, optional**: pacman and the AUR, Linux apps in their own windows,
-  terminal widgets, a file manager, and opt-in GPU acceleration on Mali and Adreno 6xx+ GPUs
-- **Coding agents**: the bar at the bottom sends a prompt to Claude Code, Codex,
-  Copilot, opencode and others, which open in a terminal
-- No account, no ads, no tracking
+## 🚀 Fitur Unggulan & Optimasi
 
-Needs an arm64 phone with Android 10 or newer. Without Linux, the launcher still
-has the themes, wallpapers, Android apps and the widgets that don't run commands.
+1. **Magisk / KernelSU System Priv-App Module**
+   - Diinstal langsung ke `/system/priv-app/OmaLauncher/` dengan hak akses `privapp-permissions-dev.omalauncher.xml`.
+   - Mendapatkan prioritas memori OOM / LMK `-1000` (tidak akan pernah di-kill oleh Android LowMemoryKiller).
+   - Animasi kembali ke Home Screen instan tanpa reload / redraw.
 
-## Using it
+2. **Backend Native DroidSpaces (Chroot / Linux Container)**
+   - Menggantikan PRoot standar dengan container kernel native di `/mnt/Droidspaces/launcher/`.
+   - Menghilangkan *overhead* ptrace: kompilasi kode, eksekusi biner, dan aplikasi GUI berjalan pada performa native (bare-metal speed).
 
-The bar: the one input at the bottom of the home screen opens apps and asks
-coding agents. Focusing it opens the list of Linux and Android apps; typing
-narrows the list, and Enter opens the highlighted app or sends the text to the
-agent. Short queries that name an app open it, sentences go to the agent; Tab
-and the arrow keys move the highlight. Tap the agent's name to pick another
-installed one; the choice is saved in `~/.config/omalauncher/agent`. Hold the mic to talk and release to send, or tap it to dictate
-into the field. Speech is recognized by Android (on the device when the phone
-supports it), so only text reaches Linux.
+3. **Immersive Fullscreen Wayland Display**
+   - Status bar dan navigation bar Android otomatis disembunyikan secara bersih (*transient swipe*) saat membuka aplikasi Linux Wayland (seperti Foot, Artcraft, btop, cmake-gui).
+   - Layar penuh tanpa gangguan status bar bawaan ROM.
 
-The app drawer is a widget too, `drawer.owl` in the widgets folder, so an
-agent can rewrite it. Here Grok sorts it into folders:
+4. **Dukungan Native Bluetooth Mouse & Keyboard Fisik**
+   - **Mouse Wheel Scroll**: Mendukung penuh *scroll wheel* vertikal & horizontal (`AXIS_VSCROLL`, `AXIS_HSCROLL`), klik kanan, dan *hover pointer*.
+   - **Floating Keyboard Button Collapsible**: Tombol virtual keyboard di pojok kanan bawah dapat di-hide/minimize (`⌨` / `‹`) sehingga tidak mengganggu saat menggunakan keyboard fisik Bluetooth.
 
-<img src="art/drawer-folders.webp" width="360" alt="Grok rewrites drawer.owl, and the app drawer opens sorted into folders">
+5. **Penyempurnaan App Drawer & Ikon Linux**
+   - **No Auto-Keyboard**: Keyboard virtual tidak lagi otomatis muncul saat membuka App Drawer; keyboard hanya aktif jika kolom pencarian diklik/fokus.
+   - **High-Definition Linux Icons**: Deteksi multi-direktori cerdas untuk ikon aplikasi Linux (PNG 512px hingga 32px & SVG) dengan tampilan squircle modern.
 
-### The `omalauncher` command
+6. **Fix Kompatibilitas Biner Linux**
+   - Mengatasi isu `Operation not permitted` pada biner yang memiliki capability kernel (`btop`, dll).
+   - Dukungan penuh Qt6 Wayland (`cmake-gui`, dll) dan pemutar musik terminal `cliamp` dengan ALSA.
 
-Scripts and agents in Linux reach the phone through `omalauncher`:
+---
 
-```sh
-omalauncher location          # approximate {lat, lon, accuracy, time}
-omalauncher calendar 7        # the events of the next 7 days (14 if not given)
-omalauncher battery           # level, charging, temperature, health...
-omalauncher airpods anc       # the connected AirPods: read them, or change a mode or setting
-omalauncher notify "build done" "all tests passed"
-omalauncher share report.pdf  # Android's share sheet, for you to pick an app
-omalauncher folders           # the phone folders you let Linux reach
-omalauncher get Camera/IMG_1.jpg .          # copy from one into Linux
-omalauncher put report.pdf Documents        # and back
-omalauncher pick              # Android's file picker; what you pick is copied to ~/Downloads
-omalauncher version           # the launcher's version and the commands it has
-```
+## 📦 Download
 
-It prints JSON and only uses what the launcher was already allowed: it never
-asks for a permission itself. Exit codes: 1 nothing to say (no location fix
-yet, no AirPods connected), 2 wrong arguments, 3 the launcher isn't allowed
-it, 4 the launcher isn't running or didn't answer. `omalauncher --help` has the details. The
-coding agents are told about it, so you can ask one to tell you when a long
-task is done. `phone`, its name before 0.20, still works.
-
-### Phone files
-
-The launcher asks for no storage permission. Linux has `/sdcard`, but Android
-shows it only the files Linux saved there itself: what it puts in
-`/sdcard/Download` or `/sdcard/Documents` (pictures in `/sdcard/Pictures`), your
-other apps see too (Android 11 and newer). For your own photos, downloads and
-documents, add folders at the top of settings, permissions, in Android's folder
-picker. Files shows them under "phone folders", where you can open, copy, move,
-rename and delete files and copy them to and from Linux; agents reach them
-through the `omalauncher` commands above. Android keeps the access until you
-remove the folder there.
-
-Touch input in Linux windows: tap is a left click, long press is a right
-click, drag scrolls; apps with touch support (foot, GTK) get real touch.
-
-### Keyboard and gamepad
-
-| Keys | Where | What it does |
+| File | Keterangan | Download Link |
 | --- | --- | --- |
-| Super+D | home | the app drawer |
-| Super+T | home | a terminal |
-| Super+Down | home | the swipe-down panel |
-| Super+1..9 | home | home pages |
-| Super+W | Linux window | close it |
-| Super+Esc, gamepad B | Linux window, terminal tile | leave it without closing it, since Esc itself is theirs (the gamepad's buttons stay the launcher's) |
-| Arrows, Tab, D-pad | home, drawer, panels, widgets | move between tiles and what takes taps, past the first or last tile to the next page |
-| Right / Left | widget | into its own buttons / back out to its tile |
-| Up | the bar | back to the tiles, or into the open drawer |
-| Enter (A) | tile | open it; on a terminal tile, go into it, then type into it or restart it once it has exited |
-| Menu, or hold Enter | tile | long-press it, which selects a home tile for editing |
-| Esc (B) | drawer, panel, widget screen | close it, like Back |
-| Arrows, Page Up/Down | long text (a license, a file being shared) | scroll until it has all been shown, a screenful at a time with Page Up/Down |
-| Enter, then arrows | pages screen | pick a page up by its ≡ and move it, until Enter or Esc puts it down |
-| Menu | notification in the swipe-down panel | dismiss it |
+| **OmaLauncher-Magisk-Module.zip** | Modul Magisk/KernelSU/APatch (System Priv-App, Anti-Kill) | [Download ZIP](releases/OmaLauncher-Magisk-Module.zip) |
+| **OmaLauncher-v1.0.0-release.apk** | File APK Mandiri (Standalone Release, R8 ProGuard Minified) | [Download APK](releases/OmaLauncher-v1.0.0-release.apk) |
 
-Android keeps Super on its own, Super+Space, Super+A and Super+Enter for
-itself, so Omarchy's Super+Space and Super+Enter can't be used.
+---
 
-## Building
+## 🛠️ Panduan Penginstalan
 
-```sh
-./scripts/fetch-proot.sh          # Termux's proot -> app/src/main/jniLibs (needs bsdtar)
-./gradlew :app:installDebug
-# optional: skip the 830 MB download on the device
-adb push ArchLinuxARM-aarch64-latest.tar.gz /sdcard/Android/data/dev.omalauncher/files/
+### Metode 1: Menggunakan Modul Magisk / KernelSU / APatch (Sangat Direkomendasikan)
+
+Metode ini memberikan performa terbaik dan stabilitas maksimal karena aplikasi berjalan sebagai aplikasi sistem privileged.
+
+1. Download [OmaLauncher-Magisk-Module.zip](releases/OmaLauncher-Magisk-Module.zip).
+2. Buka aplikasi **Magisk**, **KernelSU**, atau **APatch Manager** di ponsel Anda.
+3. Masuk ke tab **Modules** (Modul) -> klik **Install from storage** (Pasang dari penyimpanan).
+4. Pilih file `OmaLauncher-Magisk-Module.zip`.
+5. Tunggu hingga proses instalasi selesai, lalu **Reboot** (Mulai ulang) ponsel Anda.
+6. Setelah reboot:
+   - Buka **Settings (Pengaturan Android)** -> **Apps (Aplikasi)** -> **Default apps (Aplikasi default)** -> **Home app**.
+   - Pilih **Oma Launcher** sebagai launcher utama Anda.
+
+---
+
+### Metode 2: Instalasi APK Standar
+
+Jika Anda ingin mencoba launcher tanpa memasangnya ke partisi sistem:
+
+1. Download [OmaLauncher-v1.0.0-release.apk](releases/OmaLauncher-v1.0.0-release.apk).
+2. Buka file manager dan instal APK seperti biasa (izinkan pemasangan dari sumber tidak dikenal jika diminta).
+3. Buka **Settings Android** -> jadikan **Oma Launcher** sebagai Default Home app.
+
+---
+
+## 🐧 Menyiapkan Rootfs Arch Linux & DroidSpaces
+
+Untuk menjalankan lingkungan Linux penuh dengan performa native:
+
+1. Pastikan folder DroidSpaces telah dibuat di penyimpanan root ponsel:
+   ```bash
+   su
+   mkdir -p /mnt/Droidspaces/launcher
+   ```
+2. Ekstrak rootfs Arch Linux ARM (aarch64) ke dalam folder tersebut:
+   ```bash
+   tar -xpf /sdcard/Download/ArchLinuxARM-aarch64-latest.tar.gz -C /mnt/Droidspaces/launcher/
+   ```
+3. Konfigurasi socket Wayland dan permissions:
+   ```bash
+   sh /sdcard/Download/scripts/setup-wayland-droidspaces.sh
+   ```
+4. Buka Oma Launcher. Ketuk terminal atau buka aplikasi Linux dari App Drawer.
+
+---
+
+## 🎮 Pintasan Keyboard & Navigasi
+
+| Tombol | Lokasi | Fungsi |
+| --- | --- | --- |
+| **Super + D** | Home Screen | Membuka App Drawer |
+| **Super + T** | Home Screen | Membuka terminal Foot |
+| **Super + Down** | Home Screen | Membuka panel swipe-down / notifikasi |
+| **Super + 1..9** | Home Screen | Berpindah antar halaman workspace |
+| **Super + W** | Jendela Linux | Menutup jendela aplikasi Linux |
+| **Super + Esc** | Jendela Linux | Keluar ke Home tanpa menutup proses aplikasi |
+| **Panah / Tab** | Home / Drawer | Navigasi fokus tile & aplikasi |
+| **Enter** | Tile / Drawer | Membuka aplikasi yang disorot |
+| **Esc** | Drawer / Panel | Menutup drawer atau panel yang sedang terbuka |
+
+---
+
+## 💡 Troubleshooting & Solusi
+
+### 1. `Operation not permitted` saat menjalankan biner tertentu (contoh: `btop`)
+Android kernel menolak capability bawaan paket Linux tertentu. Jalankan perintah ini di terminal:
+```bash
+su -c "setfattr -x security.capability /mnt/Droidspaces/launcher/usr/bin/btop"
 ```
 
-Tests: `./gradlew :owl:test :app:testDebugUnitTest`. `./gradlew :owl:owlJar`
-builds `owl/build/cli/owl.jar`, the checker the widget store's CI runs.
+### 2. Qt6 GUI Apps (`cmake-gui`) tidak muncul
+Pastikan paket Qt6 Wayland terpasang di Arch Linux:
+```bash
+pacman -S --needed qt6-base qt6-wayland
+```
 
-In debug builds you can launch guest commands with
-`adb shell am start -n dev.omalauncher/.MainActivity --es exec foot`.
+### 3. Ikon Aplikasi Linux Tidak Muncul di App Drawer
+Ikon aplikasi disimpan di `/usr/share/icons/hicolor/` atau `/root/.local/share/icons/hicolor/`. OmaLauncher-Root telah dilengkapi multi-directory icon resolver otomatis yang mendukung PNG 512x512 hingga 32x32 serta SVG.
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the compositor, rendering, GPU
-  acceleration, and how updates reach existing installs
-- [docs/RELEASING.md](docs/RELEASING.md): Play releases and store assets
-- [app/src/main/assets/widgets/README.md](app/src/main/assets/widgets/README.md):
-  the widget language
-- [AGENTS.md](AGENTS.md): working on the code, as a person or a coding agent:
-  build and test, the rules for changes, commit style
+---
+---
 
-## Layout
+<a name="english-documentation"></a>
+# English Documentation
 
-- `app/`: the Android app (Kotlin, Jetpack Compose, and the JNI bridge in `src/main/cpp`)
-- `owl/`: the widget language and the `owl` command line, plain Kotlin
-- `art/`: SVG masters for the app, agent and store icons
-- `store/`: Play listing sources (screenshot frames, privacy policy)
-- `fastlane/`: the Play listing and the upload lanes
-- `scripts/`: fetching proot and theme colors, rendering icons, screenshots and widget previews
+**Omalauncher-Root** is a high-performance fork of [Omalauncher](https://omarchy.org), tailored for rooted Android devices (Magisk, KernelSU, APatch) featuring native **DroidSpaces** Linux container integration, Wayland compositor optimizations, full peripheral input support (Bluetooth Mouse & Hardware Keyboard), and a zero-lag, anti-kill system privileged app module.
 
-## License
+---
 
-MIT, see [LICENSE](LICENSE), for Omalauncher's own code and artwork. The
-coding agents' logos, the symbol font and Omarchy's theme colors are not
-covered; [THIRD_PARTY.md](THIRD_PARTY.md) lists them with their sources and
-licenses. The app also ships proot, talloc and libandroid-shmem (GPL-2.0,
-LGPL-3.0 and BSD-3-Clause, prebuilt by Termux), listed in the app under
-settings › licenses.
+## ✨ Features & Enhancements
 
-Omalauncher is an independent project and is not affiliated with or endorsed
-by Omarchy, Arch Linux, or the makers of the coding agents it installs.
+- **Magisk / KernelSU / APatch Module**: Installs as `/system/priv-app/OmaLauncher/` with `-1000` OOM priority, completely eliminating background app kills by the Android LowMemoryKiller.
+- **DroidSpaces Chroot Container**: Runs Arch Linux ARM with native kernel namespaces directly on `/mnt/Droidspaces/launcher/` (zero ptrace overhead, bare-metal CPU & GPU performance).
+- **Immersive Wayland Windows**: Android status bar and navigation bars automatically hide with transient swipe handling for Linux GUI apps.
+- **Bluetooth Mouse & Keyboard Native Input**:
+  - Smooth vertical & horizontal scrolling (`AXIS_VSCROLL`, `AXIS_HSCROLL`).
+  - Pointer hover tracking and native right-click support.
+  - Floating soft keyboard button can be collapsed/hidden (`⌨` / `‹`) for a clean physical keyboard experience.
+- **Improved App Drawer**:
+  - Soft keyboard no longer forces auto-popup upon opening the drawer.
+  - Multi-resolution (512px to 32px PNG & SVG) Linux icon resolver with elegant squircle badges.
+- **Pre-configured GUI & CLI Tools**:
+  - Capability-stripped `btop` for Android kernel compatibility.
+  - Qt6 Wayland integration for `cmake-gui` and native desktop apps.
+  - Terminal audio player `cliamp` with ALSA support.
+
+---
+
+## 📥 Releases & Downloads
+
+- **[Magisk Module ZIP](releases/OmaLauncher-Magisk-Module.zip)**: System priv-app module for Magisk / KernelSU / APatch.
+- **[Standalone APK](releases/OmaLauncher-v1.0.0-release.apk)**: Standard release APK (R8/ProGuard minified).
+
+---
+
+## 🔨 Building from Source
+
+To build the APK and tests locally:
+
+```bash
+# Clone the repository
+git clone https://github.com/thaliban04/Omalauncher-root.git
+cd Omalauncher-root
+
+# Fetch proot binaries (required once)
+./scripts/fetch-proot.sh
+
+# Run tests
+./gradlew :owl:test :app:testDebugUnitTest
+
+# Assemble Release APK
+./gradlew :app:assembleRelease
+```
+
+---
+
+## 📄 License
+
+Omalauncher-Root is released under the **MIT License**. See [LICENSE](LICENSE) for details.
+All third-party tools, themes, and agent trademarks belong to their respective owners (see [THIRD_PARTY.md](THIRD_PARTY.md)).
